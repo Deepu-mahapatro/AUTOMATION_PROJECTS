@@ -1,0 +1,153 @@
+{
+  "name": "MY SECOND PROJECT",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -368,
+        -112
+      ],
+      "id": "6ccc17ef-4cb2-4385-b03b-6c10cc5b655c",
+      "name": "When chat message received",
+      "webhookId": "a1c9b01b-53c9-4a6e-a021-4914724b4e70"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=You are an advanced AI research assistant.\n\nWhen a user asks a question:\n1. Use SerpAPI to search the internet\n2. Select top 3–5 relevant results\n3. Use HTTP tool to fetch content from links\n4. Extract meaningful information\n5. Summarize clearly and accurately\n6. Provide final answer with key insights\n\nAlways verify before answering.\nIf needed, search multiple times."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -160,
+        -112
+      ],
+      "id": "af87b8e6-db52-44f4-8c16-643baca3dc82",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -64,
+        128
+      ],
+      "id": "11ad561d-7f02-40a7-a54d-6e255f80446f",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "options": {
+          "gl": "in",
+          "hl": "en"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolSerpApi",
+      "typeVersion": 1,
+      "position": [
+        208,
+        128
+      ],
+      "id": "b33efa96-fac7-4910-93d7-009c546e53c1",
+      "name": "SerpAPI",
+      "notesInFlow": false,
+      "credentials": {
+        "serpApi": {
+          "id": "rIVg0ADPCCNtG1wC",
+          "name": "SerpAPI account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        96
+      ],
+      "id": "375360c0-5beb-48ef-b4f1-0885dce775f6",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "BqMu2AgAE1LxT3Xp",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a98619cb-46ef-4072-bfca-371f075dea5b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f86a3a816e55a2a47d3a64be81afaf69380778a27db267d408102addb3e0e4dc"
+  },
+  "id": "yQUsyBfydptE6BAL",
+  "tags": []
+}
