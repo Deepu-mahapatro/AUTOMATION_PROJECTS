@@ -1,0 +1,314 @@
+{
+  "name": "AI OUTREACH AUTOMATION",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "FILL THIS FORM",
+        "formDescription": "WE'LL GET BACK TO YOU SOON",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "company"
+            },
+            {
+              "fieldLabel": "role"
+            },
+            {
+              "fieldLabel": "context"
+            },
+            {
+              "fieldLabel": "tone",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "professional"
+                  },
+                  {
+                    "option": "friendly"
+                  },
+                  {
+                    "option": "casual"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b81a21f2-e249-42f5-a449-a5cd7b29a405",
+      "name": "On form submission",
+      "webhookId": "3d0ebbcc-3f66-4be6-b997-7f7136358b68"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a professional outreach assistant.\n\nYou MUST use the available tool to search for information about the company before writing the email.\n\nSteps:\n1. Use the tool to search for the company: {{$json.company}}\n2. Extract 1–2 relevant insights about the company (recent news, products, achievements, or focus areas)\n3. Use those insights in the email\n\nNow write a clean, formal email.\n\nFormat:\n- Do not add any headings like \"Connecting\"\n- Start directly with: Dear {{$json.name}},\n- Follow a professional structure\n\nStructure:\n1. Greeting → Dear {{$json.name}},\n2. Opening → Professional introduction\n3. Body → Include company insight from tool + reason for outreach\n4. Call to action → Polite and clear\n5. Closing → Professional sign-off\n\nRules:\n- You MUST include at least one real insight about {{$json.company}} from the tool\n- Do NOT skip tool usage\n- Do NOT use placeholders like [Your Name]\n- Do NOT use casual or slang language\n- Keep it between 80–120 words\n- Do not generate anything before the greeting\n\nSignature:\nBest regards,  \nDeepu\n\nDetails:\nName: {{$json.name}}\nCompany: {{$json.company}}\nRole: {{$json.role}}\nContext: {{$json.context}}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        720,
+        0
+      ],
+      "id": "71286e61-7720-4d82-b027-52d9f6df5843",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        656,
+        224
+      ],
+      "id": "8cab811b-d466-451d-9df3-84f7cdb81ff6",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "BqMu2AgAE1LxT3Xp",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{$json.email}}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        784,
+        224
+      ],
+      "id": "2e947150-cb32-481b-89cc-31aaba37b430",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolSerpApi",
+      "typeVersion": 1,
+      "position": [
+        912,
+        224
+      ],
+      "id": "5702a681-5a9b-469e-9151-b60cf4cf5e44",
+      "name": "SerpAPI",
+      "credentials": {
+        "serpApi": {
+          "id": "rIVg0ADPCCNtG1wC",
+          "name": "SerpAPI account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$node[\"On form submission\"].json[\"email\"]}}",
+        "subject": "=Opportunity for {{$node[\"On form submission\"].json[\"name\"]}}",
+        "message": "={{$json.output}}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "b6e79cd5-5672-4202-a786-cf1ba08a6654",
+      "name": "Send a message",
+      "webhookId": "17e78e99-ec4f-4127-8acc-3a21a429247b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "F3qr7hr8RTPvebf5",
+          "name": "Gmail account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "41b2f41f-75a2-423a-b81f-f50e206ab6cb",
+              "name": "name",
+              "value": "={{$node[\"On form submission\"].json[\"name\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "f47f0407-81f9-478e-8f6d-afc79c332fff",
+              "name": "email",
+              "value": "={{$node[\"On form submission\"].json[\"email\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "a1741439-e976-4e04-bda3-a81277733897",
+              "name": "company",
+              "value": "={{$node[\"On form submission\"].json[\"company\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "c76d65af-d4a4-4267-bbb3-0e8529d7a420",
+              "name": "role",
+              "value": "={{$node[\"On form submission\"].json[\"role\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "d663b5a2-bfa5-4e49-9071-6551ec2347aa",
+              "name": "context",
+              "value": "={{$node[\"On form submission\"].json[\"context\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "73547fbe-2913-44d1-bc83-b3d51fc7fe1e",
+              "name": "tone",
+              "value": "={{$node[\"On form submission\"].json[\"tone\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        432,
+        0
+      ],
+      "id": "cf35e987-f33c-487f-9cd7-5715d3d8c6da",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://webhook.site/c0527dab-d7e3-48fd-9ce5-b2e093191ec3",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\": \"{{$json.name}}\",\n  \"email\": \"{{$json.email}}\",\n  \"company\": \"{{$json.company}}\",\n  \"role\": \"{{$json.role}}\",\n  \"context\": \"{{$json.context}}\",\n  \"tone\": \"{{$json.tone}}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "f694897d-d845-4055-b195-9a008e4a5d81",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "2dfeff9a-f5db-47a0-9878-57765ab4db6a",
+  "meta": {
+    "instanceId": "f86a3a816e55a2a47d3a64be81afaf69380778a27db267d408102addb3e0e4dc"
+  },
+  "id": "oR4epe8FzIbcKKsN",
+  "tags": []
+}
