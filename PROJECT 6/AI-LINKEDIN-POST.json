@@ -1,0 +1,437 @@
+{
+  "name": "AI-LINKEDIN-POST",
+  "nodes": [
+    {
+      "parameters": {
+        "modelName": "models/gemma-4-31b-it",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        520,
+        224
+      ],
+      "id": "112cc1f6-9647-4218-ba3d-743fec550755",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "BqMu2AgAE1LxT3Xp",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1096,
+        224
+      ],
+      "id": "5d24cde5-047d-4a0e-b4cf-731561b35f4e",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "BqMu2AgAE1LxT3Xp",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemma-4-26b-a4b-it",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1448,
+        224
+      ],
+      "id": "83c70ee0-51ce-4cc1-93b9-dc6cfc389d4f",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "BqMu2AgAE1LxT3Xp",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2499b805-5fb3-4776-9e2c-f896fdb0fcf9",
+      "name": "DAILY CONTENT SCHEDULER"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3dbf5bdd-3a14-4c62-826f-08b392c1cf8b",
+              "name": "topic",
+              "value": "AI AGENTS",
+              "type": "string"
+            },
+            {
+              "id": "3a8c8630-d280-400f-ba68-9aafa2b6b422",
+              "name": "tone ",
+              "value": "professional",
+              "type": "string"
+            },
+            {
+              "id": "b7d9e589-3881-4493-868a-153289ea426e",
+              "name": "platform ",
+              "value": "linkedin",
+              "type": "string"
+            },
+            {
+              "id": "afc917a0-32b8-483a-8132-3f960138edde",
+              "name": "audience",
+              "value": "developers",
+              "type": "string"
+            },
+            {
+              "id": "512b58a0-ad61-4229-8657-8433c36a5cfa",
+              "name": "content_type",
+              "value": "educational",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ],
+      "id": "3cff85c3-4819-49df-993f-1788336b47c8",
+      "name": "STORE TOPIC NAME"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Create a professional LinkedIn post about {{$json.topic}} for {{$json.audience}}.\n\nOBJECTIVE:\n\n* Educate developers\n* Improve readability\n* Build professional authority\n* Make the post easy to skim on LinkedIn\n\nIMPORTANT FORMAT RULES:\n\n* Do NOT use markdown\n* Do NOT use LaTeX\n* Do NOT use symbols like $O(n)$\n* Write complexities as plain text:\n  Example:\n  O(n)\n  O(n^2)\n\nPOST STRUCTURE:\n\n1. Strong hook\n2. Short explanation\n3. Key learning points using bullets\n4. Real-world applications\n5. Personal reflection\n6. Closing question\n\nRULES:\n\n* Leave a blank line between paragraphs\n* Keep paragraphs maximum 2 lines\n* Use clean spacing\n* Avoid giant paragraphs\n* Keep tone professional and human-written\n* Return ONLY the final LinkedIn post\n\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        448,
+        0
+      ],
+      "id": "19319159-c55d-4c70-94b3-9d8792f6309f",
+      "name": "LINKEDIN POST GENERATOR"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n\n  let raw = item.json.text;\n\n  raw = raw\n    .replace(/\\\\n/g, '\\n')\n    .replace(/\\*\\*/g, '')\n    .replace(/\\$/g, '')\n    .replace(/#{1,6}\\s/g, '')\n    .replace(/\\r/g, '')\n    .trim();\n\n  return {\n    json: {\n      content: raw\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ],
+      "id": "b2e48876-ff99-41d3-8ec9-13df745b2f37",
+      "name": "FORMAT CONTENT"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Generate 10 professional LinkedIn hashtags based ONLY on the LinkedIn post below.\n\nRULES:\n\n* Relevant to software engineering\n* Relevant to DSA\n* Relevant to developer growth\n* Avoid spammy hashtags\n* Avoid generic hashtags\n* Return hashtags in one line\n* No numbering\n* No explanations\n\nLinkedIn Post:\n{{$json.content}}\n\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "87ef76cf-3938-4c8e-84d5-776d3fb00792",
+      "name": "GENERATES HASTAGS"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Generate a cinematic AI image prompt for a professional LinkedIn technical post.\n\nTOPIC:\n{{$node[\"STORE TOPIC NAME\"].json[\"topic\"]}}\n\nLINKEDIN POST:\n{{$node[\"FORMAT CONTENT\"].json[\"content\"]}}\n\nREQUIREMENTS:\n\n* realistic developer workspace\n* cinematic lighting\n* futuristic coding environment\n* modern dashboards\n* clean composition\n* premium LinkedIn visual style\n* ultra realistic digital illustration\n\nIMPORTANT:\n\n* Return ONLY the image prompt\n* Maximum 50 words\n\n\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1376,
+        0
+      ],
+      "id": "8c56be26-c201-4396-9ca6-942e851bb217",
+      "name": "CREATES IMAGE PROMPT"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f9f360b8-d4de-4281-8e7a-9c2771df5927",
+              "name": "image_url",
+              "value": "=https://image.pollinations.ai/prompt/{{$json.text}}?width=1280&height=720&model=flux&seed={{$now}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1728,
+        0
+      ],
+      "id": "8f89da97-de79-4894-a9d9-212e5233f3bb",
+      "name": "CRETAES IMAGE URL"
+    },
+    {
+      "parameters": {
+        "url": "=https://image.pollinations.ai/prompt/{{ encodeURIComponent($json.text) }}?width=1280&height=720&model=flux&seed={{$now}}\n",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1952,
+        0
+      ],
+      "id": "3a4e3fad-3a42-4ae8-87ff-0980d01540a9",
+      "name": "GENERATES IMAGE "
+    },
+    {
+      "parameters": {
+        "name": "=linkedin-post-{{$now}}.png",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1BqPMgBFvnCrn_mtypkODjQsU0SzjRKZw",
+          "mode": "list",
+          "cachedResultName": "LINKEDIN-AI-POST",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1BqPMgBFvnCrn_mtypkODjQsU0SzjRKZw"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2176,
+        0
+      ],
+      "id": "82272439-e0bf-427d-830e-f6b14e9c3135",
+      "name": "SVAVES IN GOOGLE DRIVE",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "qxAzqXCrNjNYCil7",
+          "name": "Google Drive account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "deepumahapatro2006@gmail.com",
+        "subject": "🚀 AI LinkedIn Content Generated Successfully",
+        "message": "=Hello Deepu,\n\nYour AI LinkedIn content has been generated successfully.\n\n📝 LinkedIn Post:\n{{$node[\"FORMAT CONTENT\"].json[\"content\"]}}\n\n🏷️ Hashtags:\n{{$node[\"GENERATES HASTAGS\"].json[\"text\"]}}\n\n🖼️ AI Generated Image:\n{{$json.webViewLink}}\n\n\n\n\n\n",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        0
+      ],
+      "id": "23fe2d3f-167a-4cc7-a14b-947928e03e5d",
+      "name": "LINKEDIN CONTENT DELIVERY",
+      "webhookId": "aefd0487-c490-4c9e-8da5-f69aa34b1333",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "F3qr7hr8RTPvebf5",
+          "name": "Gmail account 5"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LINKEDIN POST GENERATOR",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "GENERATES HASTAGS",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "CREATES IMAGE PROMPT",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DAILY CONTENT SCHEDULER": {
+      "main": [
+        [
+          {
+            "node": "STORE TOPIC NAME",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "STORE TOPIC NAME": {
+      "main": [
+        [
+          {
+            "node": "LINKEDIN POST GENERATOR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LINKEDIN POST GENERATOR": {
+      "main": [
+        [
+          {
+            "node": "FORMAT CONTENT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FORMAT CONTENT": {
+      "main": [
+        [
+          {
+            "node": "GENERATES HASTAGS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GENERATES HASTAGS": {
+      "main": [
+        [
+          {
+            "node": "CREATES IMAGE PROMPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CREATES IMAGE PROMPT": {
+      "main": [
+        [
+          {
+            "node": "CRETAES IMAGE URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRETAES IMAGE URL": {
+      "main": [
+        [
+          {
+            "node": "GENERATES IMAGE ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GENERATES IMAGE ": {
+      "main": [
+        [
+          {
+            "node": "SVAVES IN GOOGLE DRIVE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SVAVES IN GOOGLE DRIVE": {
+      "main": [
+        [
+          {
+            "node": "LINKEDIN CONTENT DELIVERY",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "c02955b8-788b-4cb1-b48b-c2fae7242c00",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f86a3a816e55a2a47d3a64be81afaf69380778a27db267d408102addb3e0e4dc"
+  },
+  "id": "QofkZr14dpXvLghM",
+  "tags": []
+}
