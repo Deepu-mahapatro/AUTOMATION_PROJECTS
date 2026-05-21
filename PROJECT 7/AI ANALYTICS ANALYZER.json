@@ -1,0 +1,947 @@
+{
+  "name": "AI ANALYTICS ANALYZER",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Create unique submission ID\nconst submissionId =\n  $json[\"Full Name\"] + \"_\" +\n  $json[\"Date Range From\"] + \"_\" +\n  $json[\"Date Range To\"];\n\n// Convert to hash\nconst submissionHash =\n  Buffer.from(submissionId).toString(\"base64\");\n\n// Workflow memory\nconst staticData =\n  $getWorkflowStaticData(\"global\");\n\n// Create storage object\nif (!staticData.processedHashes) {\n  staticData.processedHashes = {};\n}\n\n// Check duplicate\nif (staticData.processedHashes[submissionHash]) {\n  throw new Error(\"Duplicate submission detected\");\n}\n\n// Save current submission\nstaticData.processedHashes[submissionHash] =\n  Date.now();\n\n// Return proper object\nreturn [\n  {\n    json: {\n      ...$json,\n      submissionHash: submissionHash,\n      deduplicationPassed: true\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        352
+      ],
+      "id": "71d410e7-9f7f-4490-a414-00c2c513e781",
+      "name": "DEDUPLICATION CHECK"
+    },
+    {
+      "parameters": {
+        "jsCode": "// INPUT SANITIZATION\n\nconst input = $json;\nconst errors = [];\n\n// REQUIRED FIELD VALIDATION\nconst requiredFields = [\n  \"Full Name\",\n  \"Email\",\n  \"Department\",\n  \"Date Range From\",\n  \"Date Range To\",\n  \"Data Source\",\n  \"Metrics\"\n];\n\n// CHECK MISSING FIELDS\nfor (const field of requiredFields) {\n\n  if (\n    !input[field] ||\n    String(input[field]).trim() === \"\"\n  ) {\n\n    errors.push(\n      `Missing required field: ${field}`\n    );\n  }\n}\n\n// EMAIL VALIDATION\nconst emailRegex =\n  /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n\nif (\n  input[\"Email\"] &&\n  !emailRegex.test(input[\"Email\"])\n) {\n\n  errors.push(\"Invalid email format\");\n}\n\n// DATE VALIDATION\n\nconst fromDate =\n  new Date(input[\"Date Range From\"]);\n\nconst toDate =\n  new Date(input[\"Date Range To\"]);\n\nconst today =\n  new Date();\n\n// REMOVE TIME PART\ntoday.setHours(0,0,0,0);\nfromDate.setHours(0,0,0,0);\ntoDate.setHours(0,0,0,0);\n\n// INVALID DATE CHECK\nif (isNaN(fromDate.getTime())) {\n  errors.push(\"Invalid Date Range From\");\n}\n\nif (isNaN(toDate.getTime())) {\n  errors.push(\"Invalid Date Range To\");\n}\n\n// FUTURE DATE CHECK\nif (fromDate > today) {\n  errors.push(\n    \"Date Range From cannot be future date\"\n  );\n}\n\nif (toDate > today) {\n  errors.push(\n    \"Date Range To cannot be future date\"\n  );\n}\n\n// DATE ORDER CHECK\nif (fromDate > toDate) {\n  errors.push(\n    \"Date Range From must be before Date Range To\"\n  );\n}\n\n// MAX RANGE VALIDATION\nconst diffDays =\n  (toDate - fromDate) /\n  (1000 * 60 * 60 * 24);\n\nif (diffDays > 365) {\n  errors.push(\n    \"Date range cannot exceed 365 days\"\n  );\n}\n\n// SANITIZE TEXT\nconst sanitize = (str) => {\n\n  if (!str) return \"\";\n\n  return String(str)\n\n    // REMOVE HTML TAGS\n    .replace(/<[^>]*>/g, \"\")\n\n    // REMOVE JAVASCRIPT\n    .replace(/javascript:/gi, \"\")\n\n    // REMOVE EVENT HANDLERS\n    .replace(/on\\w+\\s*=/gi, \"\")\n\n    // TRIM SPACES\n    .trim()\n\n    // LIMIT LENGTH\n    .substring(0, 2000);\n};\n\n// IF ERRORS FOUND\nif (errors.length > 0) {\n\n  return {\n    json: {\n      ...input,\n      validationPassed: false,\n      validationErrors: errors\n    }\n  };\n}\n\n// RETURN CLEAN DATA\nreturn {\n  json: {\n\n    ...input,\n\n    \"Full Name\":\n      sanitize(input[\"Full Name\"]),\n\n    \"Metrics\":\n      sanitize(input[\"Metrics\"]),\n\n    \"Special AI Instructions\":\n      sanitize(\n        input[\"Special AI Instructions\"]\n      ),\n\n    validationPassed: true,\n\n    validationErrors: []\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        352
+      ],
+      "id": "f5e322b2-052a-48ba-b1d0-0cfbeeff3bd2",
+      "name": "DATA VALIDATOR"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "af23b9a1-9063-4f50-94e9-0a6e7b61ac92",
+              "leftValue": "={{ $json.validationPassed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        624
+      ],
+      "id": "5cd407f3-27c3-4bee-a44d-e50306314237",
+      "name": "INPUT VALIDATOR"
+    },
+    {
+      "parameters": {
+        "jsCode": "// DATA CHOOSER\n\nconst source =\n  $json[\"Data Source\"];\n\nconst dateFrom =\n  $json[\"Date Range From\"];\n\nconst dateTo =\n  $json[\"Date Range To\"];\n\nconst metrics =\n  $json[\"Metrics\"]\n    .split(\",\")\n    .map(m => m.trim());\n\nconst department =\n  $json[\"Department\"];\n\n// Build structured configuration\nreturn {\n  json: {\n\n    ...$json,\n\n    queryConfig: {\n\n      source: source,\n\n      dateFrom: dateFrom,\n\n      dateTo: dateTo,\n\n      metrics: metrics,\n\n      department: department,\n\n      reportType:\n        $json[\"Report Type\"] ||\n        \"Full analysis + forecast\",\n\n      outputFormat:\n        $json[\"Output Format\"] ||\n        \"Email HTML\",\n\n      aiInstructions:\n        $json[\"Special AI Instructions\"] || \"\",\n\n      requesterEmail:\n        $json[\"Email\"],\n\n      requesterName:\n        $json[\"Full Name\"],\n\n      additionalRecipients:\n        ($json[\"Additional Recipients\"] || \"\")\n          .split(\",\")\n          .map(e => e.trim())\n          .filter(Boolean)\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        432
+      ],
+      "id": "58feb16f-eadc-474d-aca9-79917512a688",
+      "name": "DATA CHOOSER"
+    },
+    {
+      "parameters": {
+        "jsCode": "// GET EXISTING CONFIG\n\nconst config = $json.queryConfig;\n\n// STANDARDIZE METRICS\n\nconst normalizedMetrics =\n  config.metrics.map(metric => {\n\n    const clean =\n      metric.toLowerCase().trim();\n\n    // Metric normalization map\n    const metricMap = {\n\n      \"cac\":\n        \"customer acquisition cost\",\n\n      \"ltv\":\n        \"lifetime value\",\n\n      \"rev\":\n        \"revenue\",\n\n      \"churn\":\n        \"customer churn\",\n\n      \"roi\":\n        \"return on investment\"\n    };\n\n    return metricMap[clean] || clean;\n  });\n\n// STANDARDIZE DEPARTMENT\n\nconst normalizedDepartment =\n  config.department\n    .toLowerCase()\n    .trim();\n\n// CREATE DATE OBJECTS\n\nconst startDate =\n  new Date(config.dateFrom);\n\nconst endDate =\n  new Date(config.dateTo);\n\n// CALCULATE RANGE DAYS\n\nconst timeDifference =\n  endDate - startDate;\n\nconst totalDays =\n  Math.ceil(\n    timeDifference / (1000 * 60 * 60 * 24)\n  );\n\n// CREATE NORMALIZED QUERY\n\nconst normalizedQuery = {\n\n  ...config,\n\n  normalizedMetrics,\n\n  normalizedDepartment,\n\n  analyticsWindowDays:\n    totalDays,\n\n  generatedAt:\n    new Date().toISOString(),\n\n  aiReadyPrompt:\n    `\n    Analyze ${normalizedDepartment}\n    department performance using\n    metrics:\n    ${normalizedMetrics.join(\", \")}\n\n    Time period:\n    ${config.dateFrom}\n    to\n    ${config.dateTo}\n    `\n};\n\n// RETURN FINAL OBJECT\n\nreturn {\n  json: {\n\n    ...$json,\n\n    normalizedQuery\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        432
+      ],
+      "id": "d557dadc-c386-4d73-8477-e9d1df5fffce",
+      "name": "ADVANCED QUERY NORMALIZER"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a senior business intelligence analyst.\n\nAnalyze the business context and generate\nan executive-level narrative summary.\n\nDepartment:\n{{ $json.normalizedQuery.normalizedDepartment }}\n\nMetrics:\n{{ $json.normalizedQuery.normalizedMetrics.join(\", \") }}\n\nAnalysis Window:\n{{ $json.normalizedQuery.analyticsWindowDays }} days\n\nBusiness Context:\n{{ $json.normalizedQuery.aiReadyPrompt }}\n\nFocus on:\n- operational performance\n- business direction\n- strategic interpretation\n- executive readability",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1344,
+        32
+      ],
+      "id": "4d47a52c-a857-4fa9-ac77-0f42873ef3a6",
+      "name": "AI INPUT ANALYZER"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a predictive business forecasting expert.\n\nGenerate forward-looking business forecasts.\n\nDepartment:\n{{ $json.normalizedQuery.normalizedDepartment }}\n\nMetrics:\n{{ $json.normalizedQuery.normalizedMetrics.join(\", \") }}\n\nForecast Window:\n{{ $json.normalizedQuery.analyticsWindowDays }} days\n\nFocus on:\n- expected growth\n- operational risks\n- future opportunities\n- performance trajectory\n- likely business outcomes\n\nProvide concise executive forecasting insights.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1344,
+        624
+      ],
+      "id": "10f25895-33fa-4e11-a9a2-859d4299ee37",
+      "name": "DATA FORECASTING ENGINE"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a KPI analytics specialist.\n\nAnalyze the following business KPIs.\n\nDepartment:\n{{ $json.normalizedQuery.normalizedDepartment }}\n\nKPIs:\n{{ $json.normalizedQuery.normalizedMetrics.join(\", \") }}\n\nTime Range:\n{{ $json.normalizedQuery.analyticsWindowDays }} days\n\nFocus on:\n\n- KPI health\n- efficiency trends\n- anomalies\n- growth indicators\n- operational risks\n- performance concerns\n\nProvide concise executive KPI insights.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1344,
+        432
+      ],
+      "id": "3085b8ed-07be-46d8-9567-a64a91467856",
+      "name": "KPI ANALYZER"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item;\n\n// RENAME PDF FILE\nitem.binary.data.fileName =\n  \"analytics-report.pdf\";\n\nreturn item;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2944,
+        480
+      ],
+      "id": "952339b3-de5f-48d4-8dd1-fe1630610ae0",
+      "name": "SET PDF NAME"
+    },
+    {
+      "parameters": {
+        "jsCode": "let html = $json.text || \"\";\n\n// REMOVE ```html\nhtml = html.replace(/```html/gi, \"\");\n\n// REMOVE ```\nhtml = html.replace(/```/g, \"\");\n\n// CONVERT ESCAPED NEWLINES\nhtml = html.replace(/\\\\n/g, \"\\n\");\n\n// OPTIONAL: REMOVE ESCAPED TABS\nhtml = html.replace(/\\\\t/g, \"\\t\");\n\n// TRIM EXTRA SPACES\nhtml = html.trim();\n\nreturn {\n  json: {\n    ...$json,\n    text: html\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2272,
+        480
+      ],
+      "id": "0318159f-014b-402b-81c2-3494d7dae667",
+      "name": "CLEAN HTML RESPONSE"
+    },
+    {
+      "parameters": {
+        "formTitle": "AI-Powered Analytics Report Request",
+        "formDescription": "Fill in the required details to generate your AI-powered business analytics report.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Full Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Department",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Sales"
+                  },
+                  {
+                    "option": "Marketing"
+                  },
+                  {
+                    "option": "Finance"
+                  },
+                  {
+                    "option": "Operations"
+                  },
+                  {
+                    "option": "Product"
+                  },
+                  {
+                    "option": "Leadership"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Date Range From",
+              "fieldType": "date",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Date Range To",
+              "fieldType": "date",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Data Source",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Google Sheets"
+                  },
+                  {
+                    "option": "PostgreSQL"
+                  },
+                  {
+                    "option": "Salesforce"
+                  },
+                  {
+                    "option": "Google Analytics"
+                  },
+                  {
+                    "option": "REST API"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Metrics",
+              "placeholder": "Revenue,Churn,CAC,LTV",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Report Type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Full analysis + forecast"
+                  },
+                  {
+                    "option": "KPIs only"
+                  },
+                  {
+                    "option": "Forecast only"
+                  },
+                  {
+                    "option": "Executive summary"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Output Format",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Email+HTML"
+                  },
+                  {
+                    "option": "Email+PDF"
+                  },
+                  {
+                    "option": "Slack"
+                  },
+                  {
+                    "option": "Dashboard webhook"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Additional Recipients",
+              "placeholder": "Comma-separated emails"
+            },
+            {
+              "fieldLabel": "Special AI Instructions",
+              "fieldType": "textarea"
+            },
+            {
+              "fieldLabel": "Recurrence",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "One-time"
+                  },
+                  {
+                    "option": "Daily"
+                  },
+                  {
+                    "option": "Weekly"
+                  },
+                  {
+                    "option": "Monthly"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        352
+      ],
+      "id": "ba1b08ea-af8e-492d-8cac-7494db26780b",
+      "name": "REPORT REQUEST FORM",
+      "webhookId": "0ac73e2b-653f-4b3d-bf26-890e8bbd5301"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 3,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1696,
+        464
+      ],
+      "id": "078d2303-dd07-497b-9d71-691c992c050d",
+      "name": "MERGE AI RESULTS"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a professional enterprise business report writer.\n\nGenerate a complete executive business analytics report in professional HTML format.\n\nThe report must include:\n\n# Executive Summary\n\n# KPI Dashboard\n\n# Business Insights\n\n# Forecast Outlook\n\n# Strategic Recommendations\n\nRequirements:\n\n- Use clean HTML structure\n- Use professional executive layout\n- Include KPI cards\n- Include modern business tables\n- Use inline CSS styling\n- Make the layout suitable for email and PDF rendering\n- Use dark professional headers\n- Use readable fonts and spacing\n- Keep the report executive-level and concise\n\nNARRATIVE CONTEXT:\n{{ $('AI INPUT ANALYZER').item.json.text || '' }}\n\nKPI ANALYSIS:\n{{ $('KPI ANALYZER').item.json.text || '' }}\n\nFORECAST DATA:\n{{ $('DATA FORECASTING ENGINE').item.json.text || '' }}\n\nREQUESTER:\n{{ $json.queryConfig?.requesterName || '' }}\n\nDEPARTMENT:\n{{ $json.queryConfig?.department || '' }}\n\nDATE RANGE:\n{{ $json.queryConfig?.dateFrom || '' }}\nto\n{{ $json.queryConfig?.dateTo || '' }}\n\nGenerate complete HTML only.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1920,
+        480
+      ],
+      "id": "f7946885-f0fe-48a4-a6e7-d2e40e2145f4",
+      "name": "CONTENT GENERATION"
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "options": {
+          "fileName": "index.html"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2496,
+        480
+      ],
+      "id": "98fed895-e61c-4509-b4c6-1aec97f17bdb",
+      "name": "CREATE HTML FILE"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://demo.gotenberg.dev/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2720,
+        480
+      ],
+      "id": "32764b09-bf65-4201-8606-492bee9202d6",
+      "name": "PDF GENERATOR"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3168,
+        256
+      ],
+      "id": "400566e1-f075-4114-8d5f-4033ce2859cd",
+      "name": "MERGE FINAL OUTPUT"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1eYtJmaPg16LJiKu5pkvDv4W7VQrL8AP_SJgmiHersNQ",
+          "mode": "list",
+          "cachedResultName": "AI Analytics Audit Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1eYtJmaPg16LJiKu5pkvDv4W7VQrL8AP_SJgmiHersNQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "AnalyticsLog",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1eYtJmaPg16LJiKu5pkvDv4W7VQrL8AP_SJgmiHersNQ/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "          Timestamp": "={{ $now }}",
+            "        FullName": "={{ $('DATA VALIDATOR').item.json[\"Full Name\"] }}",
+            "                   Email": "={{ $('DATA VALIDATOR').item.json[\"Email\"] }}",
+            "             ReportType": "={{ $('DATA VALIDATOR').item.json[\"Report Type\"] }}",
+            "Department": "={{ $('DATA VALIDATOR').item.json[\"Department\"] }}",
+            "   DateFrom": "={{ $('DATA VALIDATOR').item.json[\"Date Range From\"] }}",
+            "    DateTo": "={{ $('DATA VALIDATOR').item.json[\"Date Range To\"] }}",
+            "Metrics": "={{ $('DATA VALIDATOR').item.json[\"Metrics\"] }}",
+            "Status": "Completed"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "          Timestamp",
+              "displayName": "          Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "        FullName",
+              "displayName": "        FullName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "                   Email",
+              "displayName": "                   Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Department",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "   DateFrom",
+              "displayName": "   DateFrom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "    DateTo",
+              "displayName": "    DateTo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Metrics",
+              "displayName": "Metrics",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "             ReportType",
+              "displayName": "             ReportType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3392,
+        -16
+      ],
+      "id": "0a8a5421-7055-43c6-a75b-e527f3dce481",
+      "name": "LOG REPORT REQUEST",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "aHjLIeC01J0rmwBO",
+          "name": "Google Sheets account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('DATA VALIDATOR').item.json['Email'] }}",
+        "subject": "=Analytics Report | {{ $('DATA VALIDATOR').item.json['Department'] }} | {{ new Date().toLocaleDateString() }}",
+        "message": "=<div style=\"font-family: Arial; padding:20px;\">\n\n<h2>AI Analytics Report Generated</h2>\n\n<p>\nHello {{ $('DATA VALIDATOR').item.json[\"Full Name\"] }},\n</p>\n\n<p>\nYour analytics report has been successfully generated.\n</p>\n\n<table border=\"1\"\ncellpadding=\"8\"\ncellspacing=\"0\"\nstyle=\"border-collapse: collapse; width:100%;\">\n\n<tr>\n<td><strong>Department</strong></td>\n<td>\n{{ $('DATA VALIDATOR').item.json[\"Department\"] }}\n</td>\n</tr>\n\n<tr>\n<td><strong>Report Type</strong></td>\n<td>\n{{ $('DATA VALIDATOR').item.json[\"Report Type\"] }}\n</td>\n</tr>\n\n<tr>\n<td><strong>Date Range</strong></td>\n<td>\n{{ $('DATA VALIDATOR').item.json[\"Date Range From\"] }}\nto\n{{ $('DATA VALIDATOR').item.json[\"Date Range To\"] }}\n</td>\n</tr>\n\n<tr>\n<td><strong>Status</strong></td>\n<td>\nCompleted ✅\n</td>\n</tr>\n\n</table>\n\n<p style=\"margin-top:20px;\">\nPlease find the attached PDF report.\n</p>\n\n</div>\n",
+        "options": {
+          "appendAttribution": false,
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          },
+          "ccList": "={{ $('DATA VALIDATOR').item.json['Additional Recipients'] }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        3392,
+        368
+      ],
+      "id": "7a297c2a-899d-4c1c-8345-ea5105069a4f",
+      "name": "SEND REPORT EMAIL",
+      "webhookId": "553c79d2-42be-47b2-b33b-161fb13f0a3e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "F3qr7hr8RTPvebf5",
+          "name": "Gmail account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0B52ME6D2A",
+          "mode": "list",
+          "cachedResultName": "all-notify"
+        },
+        "text": "=={{\n`📊 *Analytics Report Generated*\n\n👤 *Requester:* ${$json[\"Full Name\"]}\n\n🏢 *Department:* ${$json[\"Department\"]}\n\n📈 *Report Type:* ${$json[\"Report Type\"]}\n\n📅 *Generated:* ${new Date().toLocaleString()}\n\n✅ *Status:* Completed`\n}}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        3392,
+        176
+      ],
+      "id": "a3a3c8e7-9515-458b-9e0e-0189ea8f1327",
+      "name": "SEND SLACK ALERT",
+      "webhookId": "b4b35945-d21d-48a4-86ea-c72029bd6bb1",
+      "credentials": {
+        "slackApi": {
+          "id": "fVkcfojZhpf4NSKV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "=={{$json[\"Email\"]}}",
+        "subject": "=Analytics Report Request Failed Validation",
+        "emailType": "text",
+        "message": "=Hello {{$json[\"Full Name\"]}},\n\nYour analytics report request could not be processed because some validation checks failed.\n\nValidation Errors:\n\n{{$json.validationErrors.join('\\n')}}\n\nPlease correct the above issues and submit the form again.\n\nThank you.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        624
+      ],
+      "id": "44acf0e8-69d7-45ae-b6b0-6e1e7fb22e68",
+      "name": "SEND VALIDATION EMAIL ERROR",
+      "webhookId": "399a4342-4702-4939-b6d8-73c63dfa9bed",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "F3qr7hr8RTPvebf5",
+          "name": "Gmail account 5"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        256
+      ],
+      "id": "92482411-04bc-4916-a78a-29e98921a1ba",
+      "name": "AI MODEL",
+      "credentials": {
+        "groqApi": {
+          "id": "qwVqQWFGmv7E7pq7",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        704
+      ],
+      "id": "f29a2ea9-0d12-42ab-90b1-b7189c4a7e1a",
+      "name": "AI MODEL1",
+      "credentials": {
+        "groqApi": {
+          "id": "qwVqQWFGmv7E7pq7",
+          "name": "Groq account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "DEDUPLICATION CHECK": {
+      "main": [
+        [
+          {
+            "node": "DATA VALIDATOR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DATA VALIDATOR": {
+      "main": [
+        [
+          {
+            "node": "INPUT VALIDATOR",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "MERGE FINAL OUTPUT",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "INPUT VALIDATOR": {
+      "main": [
+        [
+          {
+            "node": "DATA CHOOSER",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SEND VALIDATION EMAIL ERROR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DATA CHOOSER": {
+      "main": [
+        [
+          {
+            "node": "ADVANCED QUERY NORMALIZER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ADVANCED QUERY NORMALIZER": {
+      "main": [
+        [
+          {
+            "node": "AI INPUT ANALYZER",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "DATA FORECASTING ENGINE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "KPI ANALYZER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DATA FORECASTING ENGINE": {
+      "main": [
+        [
+          {
+            "node": "MERGE AI RESULTS",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "KPI ANALYZER": {
+      "main": [
+        [
+          {
+            "node": "MERGE AI RESULTS",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "AI INPUT ANALYZER": {
+      "main": [
+        [
+          {
+            "node": "MERGE AI RESULTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SET PDF NAME": {
+      "main": [
+        [
+          {
+            "node": "MERGE FINAL OUTPUT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLEAN HTML RESPONSE": {
+      "main": [
+        [
+          {
+            "node": "CREATE HTML FILE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "REPORT REQUEST FORM": {
+      "main": [
+        [
+          {
+            "node": "DEDUPLICATION CHECK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MERGE AI RESULTS": {
+      "main": [
+        [
+          {
+            "node": "CONTENT GENERATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONTENT GENERATION": {
+      "main": [
+        [
+          {
+            "node": "CLEAN HTML RESPONSE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CREATE HTML FILE": {
+      "main": [
+        [
+          {
+            "node": "PDF GENERATOR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF GENERATOR": {
+      "main": [
+        [
+          {
+            "node": "SET PDF NAME",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MERGE FINAL OUTPUT": {
+      "main": [
+        [
+          {
+            "node": "LOG REPORT REQUEST",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SEND SLACK ALERT",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SEND REPORT EMAIL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LOG REPORT REQUEST": {
+      "main": [
+        []
+      ]
+    },
+    "SEND SLACK ALERT": {
+      "main": [
+        []
+      ]
+    },
+    "AI MODEL": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI INPUT ANALYZER",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "KPI ANALYZER",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "DATA FORECASTING ENGINE",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI MODEL1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "CONTENT GENERATION",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b907bffe-5255-4a64-92d5-311bccba2c63",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f86a3a816e55a2a47d3a64be81afaf69380778a27db267d408102addb3e0e4dc"
+  },
+  "id": "I3pKy2F3heRfzQc6",
+  "tags": []
+}
